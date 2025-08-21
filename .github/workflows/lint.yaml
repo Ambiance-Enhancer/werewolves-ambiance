@@ -1,0 +1,66 @@
+name: Lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5.0.0
+
+      - name: Set up Python
+        if: ${{ contains(matrix.extensions, 'py') }}
+        uses: actions/setup-python@v5.6.0
+        with:
+          python-version: '3.x'
+
+      - name: Set up Node.js
+        if: ${{ contains(matrix.extensions, 'js') || contains(matrix.extensions, 'ts') }}
+        uses: actions/setup-node@v4.4.0
+        with:
+          node-version: '18'
+
+      - name: Detect file extensions
+        id: detect
+        run: |
+          git fetch origin main
+          if [[ $GITHUB_EVENT_NAME == 'pull_request' ]]; then
+            DIFF=$(git diff --name-only origin/main...HEAD)
+          else
+            DIFF=$(git diff --name-only HEAD~1)
+          fi
+          EXT=$(echo "$DIFF" | awk -F. '/\./{print $NF}' | sort | uniq | tr '\n' ',' | sed 's/,$//')
+          echo "extensions=$EXT" >> $GITHUB_OUTPUT
+
+    strategy:
+      matrix:
+        extensions: [py, js, ts, sh, yml]
+
+    steps:
+      - name: Run Python linter (flake8)
+        if: ${{ contains(steps.detect.outputs.extensions, 'py') }}
+        run: |
+          pip install flake8
+          flake8 .
+
+      - name: Run JavaScript linter (eslint)
+        if: ${{ contains(steps.detect.outputs.extensions, 'js') || contains(steps.detect.outputs.extensions, 'ts') }}
+        run: |
+          npm install
+          npx eslint .
+
+      - name: Run Shell linter (shellcheck)
+        if: ${{ contains(steps.detect.outputs.extensions, 'sh') }}
+        run: |
+          sudo apt-get install -y shellcheck
+          shellcheck $(find . -name "*.sh")
+
+      - name: Run YAML linter (yamllint)
+        if: ${{ contains(steps.detect.outputs.extensions, 'yml') }}
+        run: |
+          pip install yamllint
+          yamllint .
