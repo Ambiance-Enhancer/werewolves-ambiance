@@ -28,4 +28,54 @@ Il y a plusieurs parties au projet :
 - On se fait un ptit call de temps en temps
 - Alexandre n'a pas le droit de merge.
 
-## Bon on verra la suite
+## Architecture du repo
+```
+werewolves-ambiance/
+├── README.md
+├── src/
+│   ├── backend/
+│   │   ├── api/                 # FastAPI / Flask / Express endpoints
+│   │   │   ├── __init__.py
+│   │   │   ├── routes/          # HTTP/WebSocket routes
+│   │   │   │   ├── game.py
+│   │   │   │   └── players.py
+│   │   │   └── middleware.py
+│   │   ├── core/                # Core logic (independent of API)
+│   │   │   ├── game_engine.py   # Game state machine, rules
+│   │   │   ├── models.py        # Data models (Pydantic / dataclasses)
+│   │   │   ├── ambiance.py      # Ambiance triggers (sound, lighting)
+│   │   │   └── utils.py
+│   │   ├── services/            # Modular services
+│   │   │   ├── game_tracking/
+│   │   │   │   ├── tracker.py   # Game state updates, persistence
+│   │   │   │   └── history.py   # Logs, replay
+│   │   │   └── vocal_detection/
+│   │   │       ├── mic_input.py
+│   │   │       └── speech_to_text.py
+│   │   ├── __init__.py
+│   │   └── main.py              # Entry point (runs API server)
+│   │
+│   ├── database/
+│   │   ├── migrations/          # Alembic or SQL migrations
+│   │   ├── models/              # SQLAlchemy/ORM models
+│   │   └── db.py                # DB connection
+│   │
+│   ├── frontend/
+│   │   ├── public/              # Static assets
+│   │   ├── src/                 # React/Vue/Svelte code
+│   │   │   ├── components/
+│   │   │   ├── pages/
+│   │   │   ├── services/        # API calls to backend
+│   │   │   └── store/           # State management (Redux/Zustand/Pinia)
+│   │   └── package.json
+│   │
+│   └── shared/                  # Code shared between backend/frontend
+│       └── types/               # e.g., TypeScript interfaces or JSON schemas
+│
+├── tests/                       # Unit/integration tests
+│   ├── backend/
+│   ├── frontend/
+│   └── e2e/
+├── docker-compose.yml           # If you containerize
+├── requirements.txt / pyproject.toml
+└── package.json
