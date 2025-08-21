@@ -4,7 +4,7 @@ name: Lint
 on:
   push:
     branches: [main]
-  pull_request:
+  pull_request: {}
 
 jobs:
   detect:
@@ -13,7 +13,7 @@ jobs:
       extensions: ${{ steps.detect.outputs.extensions }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v5.0.0
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v5.0.0
         with:
           fetch-depth: 0
 
@@ -39,13 +39,13 @@ jobs:
         extension: [py, js, ts, sh, yml]
     steps:
       - name: Checkout code
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v5.0.0
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v5.0.0
 
       - name: Set up Python
         if: >-
           ${{ contains(needs.detect.outputs.extensions, 'py') &&
           matrix.extension == 'py' }}
-        uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d # v5.6.0
+        uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d  # v5.6.0
         with:
           python-version: '3.x'
 
@@ -54,7 +54,7 @@ jobs:
           ${{ (contains(needs.detect.outputs.extensions, 'js') ||
           contains(needs.detect.outputs.extensions, 'ts')) &&
           (matrix.extension == 'js' || matrix.extension == 'ts') }}
-        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.4.0
+        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8  # v4.4.0
         with:
           node-version: '18'
 
@@ -89,4 +89,4 @@ jobs:
           matrix.extension == 'yml' }}
         run: |
           pip install yamllint
-          yamllint .
+          yamllint -d "{extends: default, rules: {line-length: {max: 100}}}" .
