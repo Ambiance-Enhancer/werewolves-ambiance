@@ -6,23 +6,15 @@ on:
   pull_request:
 
 jobs:
-  lint:
+  detect:
     runs-on: ubuntu-latest
+    outputs:
+      extensions: ${{ steps.detect.outputs.extensions }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v5.0.0
-
-      - name: Set up Python
-        if: ${{ contains(matrix.extensions, 'py') }}
-        uses: actions/setup-python@v5.6.0
         with:
-          python-version: '3.x'
-
-      - name: Set up Node.js
-        if: ${{ contains(matrix.extensions, 'js') || contains(matrix.extensions, 'ts') }}
-        uses: actions/setup-node@v4.4.0
-        with:
-          node-version: '18'
+          fetch-depth: 0
 
       - name: Detect file extensions
         id: detect
@@ -36,31 +28,49 @@ jobs:
           EXT=$(echo "$DIFF" | awk -F. '/\./{print $NF}' | sort | uniq | tr '\n' ',' | sed 's/,$//')
           echo "extensions=$EXT" >> $GITHUB_OUTPUT
 
+  lint:
+    needs: detect
+    runs-on: ubuntu-latest
+    if: ${{ needs.detect.outputs.extensions != '' }}
     strategy:
       matrix:
-        extensions: [py, js, ts, sh, yml]
-
+        extension: [py, js, ts, sh, yml]
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v5.0.0
+
+      - name: Set up Python
+        if: ${{ contains(needs.detect.outputs.extensions, 'py') && matrix.extension == 'py' }}
+        uses: actions/setup-python@v5.6.0
+        with:
+          python-version: '3.x'
+
+      - name: Set up Node.js
+        if: ${{ (contains(needs.detect.outputs.extensions, 'js') || contains(needs.detect.outputs.extensions, 'ts')) && (matrix.extension == 'js' || matrix.extension == 'ts') }}
+        uses: actions/setup-node@v4.4.0
+        with:
+          node-version: '18'
+
       - name: Run Python linter (flake8)
-        if: ${{ contains(steps.detect.outputs.extensions, 'py') }}
+        if: ${{ contains(needs.detect.outputs.extensions, 'py') && matrix.extension == 'py' }}
         run: |
           pip install flake8
           flake8 .
 
       - name: Run JavaScript linter (eslint)
-        if: ${{ contains(steps.detect.outputs.extensions, 'js') || contains(steps.detect.outputs.extensions, 'ts') }}
+        if: ${{ (contains(needs.detect.outputs.extensions, 'js') || contains(needs.detect.outputs.extensions, 'ts')) && (matrix.extension == 'js' || matrix.extension == 'ts') }}
         run: |
           npm install
           npx eslint .
 
       - name: Run Shell linter (shellcheck)
-        if: ${{ contains(steps.detect.outputs.extensions, 'sh') }}
+        if: ${{ contains(needs.detect.outputs.extensions, 'sh') && matrix.extension == 'sh' }}
         run: |
           sudo apt-get install -y shellcheck
           shellcheck $(find . -name "*.sh")
 
       - name: Run YAML linter (yamllint)
-        if: ${{ contains(steps.detect.outputs.extensions, 'yml') }}
+        if: ${{ contains(needs.detect.outputs.extensions, 'yml') && matrix.extension == 'yml' }}
         run: |
           pip install yamllint
           yamllint .
