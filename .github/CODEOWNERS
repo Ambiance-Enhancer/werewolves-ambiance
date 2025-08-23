@@ -1,4 +1,8 @@
 # Default owners for everything in the repo
-* @Ambiance-Enhancer/maintainers
+* @admins
 
-.github/ @admins
+.github/ @infra
+src/backend/ @backend
+src/frontend/ @frontend
+src/database/ @database
+tests/ @test

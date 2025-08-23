@@ -1,0 +1,92 @@
+---
+name: Lint
+
+on:
+  push:
+    branches: [main]
+  pull_request: {}
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      extensions: ${{ steps.detect.outputs.extensions }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v5.0.0
+        with:
+          fetch-depth: 0
+
+      - name: Detect file extensions
+        id: detect
+        run: |
+          git fetch origin main
+          if [[ $GITHUB_EVENT_NAME == 'pull_request' ]]; then
+            DIFF=$(git diff --name-only origin/main...HEAD)
+          else
+            DIFF=$(git diff --name-only HEAD~1)
+          fi
+          EXT=$(echo "$DIFF" | awk -F. '/\./{print $NF}' | \
+            sort | uniq | tr '\n' ',' | sed 's/,$//')
+          echo "extensions=$EXT" >> $GITHUB_OUTPUT
+
+  lint:
+    needs: detect
+    runs-on: ubuntu-latest
+    if: ${{ needs.detect.outputs.extensions != '' }}
+    strategy:
+      matrix:
+        extension: [py, js, ts, sh, yml]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v5.0.0
+
+      - name: Set up Python
+        if: >-
+          ${{ contains(needs.detect.outputs.extensions, 'py') &&
+          matrix.extension == 'py' }}
+        uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d  # v5.6.0
+        with:
+          python-version: '3.x'
+
+      - name: Set up Node.js
+        if: >-
+          ${{ (contains(needs.detect.outputs.extensions, 'js') ||
+          contains(needs.detect.outputs.extensions, 'ts')) &&
+          (matrix.extension == 'js' || matrix.extension == 'ts') }}
+        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8  # v4.4.0
+        with:
+          node-version: '18'
+
+      - name: Run Python linter (flake8)
+        if: >-
+          ${{ contains(needs.detect.outputs.extensions, 'py') &&
+          matrix.extension == 'py' }}
+        run: |
+          pip install flake8
+          flake8 .
+
+      - name: Run JavaScript linter (eslint)
+        if: >-
+          ${{ (contains(needs.detect.outputs.extensions, 'js') ||
+          contains(needs.detect.outputs.extensions, 'ts')) &&
+          (matrix.extension == 'js' || matrix.extension == 'ts') }}
+        run: |
+          npm install
+          npx eslint .
+
+      - name: Run Shell linter (shellcheck)
+        if: >-
+          ${{ contains(needs.detect.outputs.extensions, 'sh') &&
+          matrix.extension == 'sh' }}
+        run: |
+          sudo apt-get install -y shellcheck
+          shellcheck $(find . -name "*.sh")
+
+      - name: Run YAML linter (yamllint)
+        if: >-
+          ${{ contains(needs.detect.outputs.extensions, 'yml') &&
+          matrix.extension == 'yml' }}
+        run: |
+          pip install yamllint
+          yamllint -d "{extends: default, rules: {line-length: {max: 100}}}" .
