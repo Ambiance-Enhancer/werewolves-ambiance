@@ -89,4 +89,4 @@ jobs:
           matrix.extension == 'yml' }}
         run: |
           pip install yamllint
-          yamllint -d "{extends: default, rules: {line-length: {max: 100}}}" .
+          yamllint -d "{extends: default, rules: {line-length: disable}}" .

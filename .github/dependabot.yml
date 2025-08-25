@@ -10,9 +10,7 @@ updates:
       time: "16:00"
     open-pull-requests-limit: 10
     reviewers:
-      - "Ambiance-Enhancer"
-    assignees:
-      - "Ambiance-Enhancer"
+      - "Ambiance-Enhancer/infra"
     commit-message:
       prefix: "chore"
       include: "scope"
