@@ -2,11 +2,13 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Optional
 from enum import Enum
 
+
 class GameStatus(Enum):
     WAITING = "waiting"
     RUNNING = "running"
     FINISHED = "finished"
-    
+
+
 class State(Enum):
     START_UP = "start_up"
     CUPIDON = "cupidon"
@@ -18,7 +20,8 @@ class State(Enum):
     MAYOR_ELECTION = "mayor_election"
     DAY_VOTE = "vote"
     COMPLETED = "completed"
-    
+
+
 class FirstNightState(Enum):
     START_UP = "start_up"
     CUPIDON = "cupidon"
@@ -28,24 +31,28 @@ class FirstNightState(Enum):
     LOUP_GAROU = "loup_garou"
     SORCIERE = "sorciere"
     COMPLETED = "completed"
-    
+
+
 class NightState(Enum):
     START_UP = "start_up"
     VOYANTE = "voyante"
     LOUP_GAROU = "loup_garou"
     SORCIERE = "sorciere"
     COMPLETED = "completed"
-    
+
+
 class FirstDayState(Enum):
     START_UP = "start_up"
     MAYOR_ELECTION = "mayor_election"
     DAY_VOTE = "vote"
     COMPLETED = "completed"
-    
+
+
 class DayState(Enum):
     START_UP = "start_up"
     DAY_VOTE = "vote"
     COMPLETED = "completed"
+
 
 class Role(Enum):
     VILLAGEOIS = "villageois"
@@ -56,7 +63,8 @@ class Role(Enum):
     VOYANTE = "voyante"
     CUPIDON = "cupidon"
     VOLEUR = "voleur"
-    
+
+
 class ActionType(Enum):
     VOTE = "vote"
     KILL = "kill"
@@ -67,6 +75,7 @@ class ActionType(Enum):
     STEAL_ROLE = "steal_role"
     REVEGE_KILL = "revenge_kill"
 
+
 @dataclass
 class Player:
     name: str
@@ -74,12 +83,13 @@ class Player:
     alive: bool = True
     isRevealed: bool = False
     isMayor: bool = False
-    lover: Optional['Player'] = None # Self-reference for lover relationship
-    
+    lover: Optional['Player'] = None  # Self-reference for lover relationship
+
     def Kill(self) -> None:
         self.alive = False
         if self.lover and self.lover.alive:
             self.lover.Kill()
+
 
 @dataclass
 class Action:
@@ -87,11 +97,13 @@ class Action:
     action: ActionType
     target: Player
 
+
 @dataclass
 class Log:
     round_number: int
     period: State
     actions: List[Action]
+
 
 @dataclass
 class Game:
@@ -102,8 +114,8 @@ class Game:
     players: List[Player] = field(default_factory=list)
     roles_alive: Dict[str, int] = field(default_factory=dict)
     gameLog: List[Log] = field(default_factory=list)
-    
-    def electMayor(self,players: List[Player]) -> bool:
+
+    def electMayor(self, players: List[Player]) -> bool:
         """Elect a mayor among the players"""
         voteResults = {}
         for player in players:
@@ -113,13 +125,20 @@ class Game:
             else:
                 voteResults[input_vote] = 1
             # Add vote action to the log
-            self.gameLog[self.round_number - 1].actions.append(Action(actor=player, action=ActionType.VOTE, target=self.getPlayerByName(input_vote)))
+            self.gameLog[self.round_number - 1].actions.append(Action(
+                actor=player,
+                action=ActionType.VOTE,
+                target=self.getPlayerByName(input_vote)))
         if not voteResults:
             return False
 
         # Find the player with the most votes
         max_votes = max(voteResults.values())
-        candidates = [self.getPlayerByName(name) for name, votes in voteResults.items() if votes == max_votes]
+        candidates = [
+            self.getPlayerByName(name)
+            for name, votes in voteResults.items()
+            if votes == max_votes
+        ]
 
         # If there's a tie, vote again with only the tied candidates
         if len(candidates) > 1:
@@ -130,7 +149,6 @@ class Game:
         if new_mayor:
             new_mayor.isMayor = True
             return True
-        
         return False
 
     def getPlayerByName(self, name: str) -> Optional[Player]:
@@ -138,6 +156,7 @@ class Game:
             if player.name == name:
                 return player
         return None
+
 
 @dataclass
 class Sorciere(Player):
@@ -156,6 +175,7 @@ class Sorciere(Player):
             return True
         return False
 
+
 @dataclass
 class Voyante(Player):
     investigations: Dict[str, Role] = field(default_factory=dict)
@@ -167,6 +187,7 @@ class Voyante(Player):
             return True
         return False
 
+
 @dataclass
 class LoupGarou(Player):
     vote: Player = None
@@ -175,6 +196,7 @@ class LoupGarou(Player):
         """Vote to kill a player during the night"""
         self.vote = target  # Reuse the vote field for night kills
         return True
+
 
 @dataclass
 class Chasseur(Player):
@@ -188,6 +210,7 @@ class Chasseur(Player):
             return True
         return False
 
+
 @dataclass
 class Cupidon(Player):
     lovers_chosen: tuple[Player, Player] = field(default_factory=tuple)
@@ -196,23 +219,23 @@ class Cupidon(Player):
         """Choose two players to be lovers"""
         if not self.lovers_chosen:
             self.lovers_chosen = (player1, player2)
-            player1.isInLove = True
-            player2.isInLove = True
+            player1.lover = player2
+            player2.lover = player1
             return True
         return False
+
 
 @dataclass
 class Voleur(Player):
     role_stolen: bool = False
-    original_role: Optional[str] = None
+    original_role: Optional[Role] = None
 
     def steal_role(self, target: Player) -> bool:
         """Steal a role at the beginning of the game"""
         if not self.role_stolen:
-            self.original_role = self.role
-            self.role = target.role
-            target.role = self.original_role
+            self.original_role = target.role
+            target.role = self.role
+            self.role = self.original_role
             self.role_stolen = True
             return True
         return False
-
