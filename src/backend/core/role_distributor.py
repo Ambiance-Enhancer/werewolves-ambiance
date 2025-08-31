@@ -3,6 +3,7 @@ from .models import Role, Player
 import random
 import inquirer
 
+
 class RoleDistributor:
     # Standard role distribution rules for different player counts
     ROLE_DISTRIBUTIONS = {
@@ -57,9 +58,8 @@ class RoleDistributor:
         """Calculate and return a balance indicator for the distribution"""
         total_players = sum(distribution.values())
         wolves = distribution.get(Role.LOUP_GAROU, 0)
-        specials = sum(count for role, count in distribution.items() 
-                      if role not in [Role.VILLAGEOIS, Role.LOUP_GAROU])
-        
+        specials = sum(count for role, count in distribution.items() if role not in [Role.VILLAGEOIS, Role.LOUP_GAROU])
+
         wolf_ratio = wolves / total_players
         if wolf_ratio >= 0.4:
             return "🐺 Wolf-favored"
@@ -74,30 +74,30 @@ class RoleDistributor:
         """Calculate optimal role distribution for given number of players with GM selection"""
         if num_players < 4:
             raise ValueError("Minimum 4 players required")
-        
+
         if num_players not in self.ROLE_DISTRIBUTIONS:
             # For larger games, scale from the 12-player distribution
             base_distribution = self.ROLE_DISTRIBUTIONS[12][0].copy()  # Take first variant
             extra_players = num_players - 12
             base_distribution[Role.VILLAGEOIS] += extra_players
             return base_distribution
-        
+
         variants = self.ROLE_DISTRIBUTIONS[num_players]
-        
+
         if not interactive or len(variants) == 1:
             return variants[0].copy()
-        
+
         # Present options to game master
         print(f"\n🎮 Game Master: Choose lineup for {num_players} players")
         print("=" * 60)
-        
+
         choices = []
         for i, variant in enumerate(variants):
             balance = self._calculate_balance_score(variant)
             description = self._format_role_distribution(variant)
             choice_text = f"Variant {i+1} ({balance}): {description}"
             choices.append(choice_text)
-        
+
         questions = [
             inquirer.List(
                 'variant',
@@ -106,14 +106,14 @@ class RoleDistributor:
                 carousel=True
             ),
         ]
-        
+
         try:
             answers = inquirer.prompt(questions)
             if answers:
                 # Extract variant index from choice
                 selected_index = int(answers['variant'].split()[1]) - 1
                 selected_variant = variants[selected_index]
-                
+
                 print(f"\n✅ Selected variant: {self._format_role_distribution(selected_variant)}")
                 return selected_variant.copy()
             else:
@@ -122,27 +122,27 @@ class RoleDistributor:
         except (KeyboardInterrupt, EOFError):
             print("\n⚠️ Selection cancelled, using default variant")
             return variants[0].copy()
-    
+
     def distribute_roles(self, player_names: List[str], num_players: int, interactive: bool = True) -> List[Player]:
         """Assign balanced roles to players"""
         if len(player_names) != num_players:
             raise ValueError("Number of player names must match num_players")
-        
+
         role_counts = self.get_role_counts(num_players, interactive)
-        
+
         # Create list of roles based on counts
         roles_list = []
         for role, count in role_counts.items():
             roles_list.extend([role] * count)
-        
+
         # Shuffle roles for random distribution
         random.shuffle(roles_list)
-        
+
         # Create Player objects with proper role-specific classes
         players = []
         for i, name in enumerate(player_names):
             role = roles_list[i]
-            
+
             # Create role-specific player instances
             if role == Role.SORCIERE:
                 from .models import Sorciere
@@ -166,7 +166,7 @@ class RoleDistributor:
                 # Default to base Player class for villagers and other roles
                 from .models import Player
                 player = Player(name=name, role=role)
-            
+
             players.append(player)
-        
+
         return players

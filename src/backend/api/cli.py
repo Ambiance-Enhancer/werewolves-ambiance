@@ -7,20 +7,21 @@ import inquirer
 import sys
 import os
 from typing import List, Optional
+
+from core.models import Game, GameStatus, State, Role, Sorciere, Voyante, LoupGarou, Chasseur, Cupidon, Voleur
+from core.role_distributor import RoleDistributor
 import uuid
 
 # Add the backend directory to Python path
 backend_path = os.path.join(os.path.dirname(__file__), '..')
 sys.path.insert(0, backend_path)
 
-from core.models import *
-from core.role_distributor import RoleDistributor
 
 class WerewolvesCLI:
     def __init__(self):
         self.game: Optional[Game] = None
         self.distributor = RoleDistributor()
-    
+
     def create_game(self, player_names: List[str], interactive: bool = True) -> bool:
         """Create a new game with given players"""
         try:
@@ -28,10 +29,10 @@ class WerewolvesCLI:
             if num_players < 4:
                 click.echo(click.style("❌ Error: Minimum 4 players required", fg='red'))
                 return False
-            
+
             # Distribute roles with GM selection
             players = self.distributor.distribute_roles(player_names, num_players, interactive)
-            
+
             # Create game
             game_id = str(uuid.uuid4())[:8]
             self.game = Game(
@@ -40,53 +41,53 @@ class WerewolvesCLI:
                 period=State.START_UP,
                 players=players
             )
-            
+
             click.echo(click.style(f"🎮 Game created with ID: {game_id}", fg='green'))
             click.echo(f"👥 Players: {num_players}")
-            
+
             # Show final role distribution
             role_counts = {}
             for player in players:
                 role_name = player.role.value
                 role_counts[role_name] = role_counts.get(role_name, 0) + 1
-            
+
             click.echo("\n📊 Final Role Distribution:")
             for role, count in role_counts.items():
                 click.echo(f"  {role.replace('_', ' ').title()}: {count}")
-            
+
             return True
-            
+
         except Exception as e:
             click.echo(click.style(f"❌ Error creating game: {e}", fg='red'))
             return False
-    
+
     def show_players(self):
         """Display all players and their information"""
         if not self.game:
             click.echo(click.style("❌ No game active. Create a game first.", fg='red'))
             return
-        
+
         click.echo(f"\n👥 Players in Game {self.game.uid}:")
         click.echo("=" * 50)
-        
+
         for i, player in enumerate(self.game.players, 1):
             status = "💀" if not player.alive else "❤️"
             mayor = "👑" if player.isMayor else ""
             revealed = "🔍" if player.isRevealed else ""
             lover = f"💕 {player.lover.name}" if player.lover else ""
-            
+
             click.echo(f"{i:2d}. {player.name:<15} {status} {mayor} {revealed}")
             click.echo(f"     Role: {player.role.value.replace('_', ' ').title()}")
             if lover:
                 click.echo(f"     Lover: {lover}")
             click.echo()
-    
+
     def show_game_state(self):
         """Display current game state"""
         if not self.game:
             click.echo(click.style("❌ No game active. Create a game first.", fg='red'))
             return
-        
+
         click.echo(f"\n🎮 Game State: {self.game.uid}")
         click.echo("=" * 30)
         click.echo(f"Status: {self.game.status.value}")
@@ -94,31 +95,30 @@ class WerewolvesCLI:
         click.echo(f"Round: {self.game.round_number}")
         click.echo(f"Players Alive: {sum(1 for p in self.game.players if p.alive)}")
         click.echo(f"Players Total: {len(self.game.players)}")
-    
+
     def elect_mayor(self):
         """Simulate mayor election using inquirer"""
         if not self.game:
             click.echo(click.style("❌ No game active. Create a game first.", fg='red'))
             return
-        
+
         alive_players = [p for p in self.game.players if p.alive]
         if not alive_players:
             click.echo(click.style("❌ No players alive!", fg='red'))
             return
-        
+
         click.echo(click.style("\n👑 Mayor Election", fg='yellow', bold=True))
-        
+
         try:
             questions = [
                 inquirer.List(
                     'mayor',
                     message="Select the new mayor",
-                    choices=[f"{player.name} ({player.role.value.replace('_', ' ').title()})" 
-                            for player in alive_players],
+                    choices=[f"{player.name} ({player.role.value.replace('_', ' ').title()})" for player in alive_players],
                     carousel=True
                 ),
             ]
-            
+
             answers = inquirer.prompt(questions)
             if answers:
                 # Extract player name from the choice
@@ -128,26 +128,26 @@ class WerewolvesCLI:
                 click.echo(click.style(f"👑 {selected_player.name} is now the mayor!", fg='green'))
         except KeyboardInterrupt:
             click.echo(click.style("\n❌ Mayor election cancelled", fg='yellow'))
-    
+
     def test_role_abilities(self):
         """Test role-specific abilities using inquirer"""
         if not self.game:
             click.echo(click.style("❌ No game active. Create a game first.", fg='red'))
             return
-        
+
         # Find players with special abilities
         special_players = []
         for player in self.game.players:
             if isinstance(player, (Sorciere, Voyante, LoupGarou, Chasseur, Cupidon, Voleur)):
                 role_type = type(player).__name__
                 special_players.append((player, role_type))
-        
+
         if not special_players:
             click.echo(click.style("❌ No players with special abilities found", fg='red'))
             return
-        
+
         click.echo(click.style("\n🔮 Role Ability Testing", fg='cyan', bold=True))
-        
+
         try:
             questions = [
                 inquirer.List(
@@ -157,7 +157,7 @@ class WerewolvesCLI:
                     carousel=True
                 ),
             ]
-            
+
             answers = inquirer.prompt(questions)
             if answers:
                 selected_name = answers['player'].split(' (')[0]
@@ -165,23 +165,23 @@ class WerewolvesCLI:
                 self._test_specific_role_abilities(selected_player)
         except KeyboardInterrupt:
             click.echo(click.style("\n❌ Role testing cancelled", fg='yellow'))
-    
+
     def _test_specific_role_abilities(self, player):
         """Test abilities for a specific player using inquirer"""
         click.echo(f"\n🔮 Testing abilities for {click.style(player.name, fg='cyan')}")
-        
+
         if isinstance(player, Sorciere):
             click.echo("🧙‍♀️ Sorciere Abilities:")
             click.echo(f"  Can heal: {not player.potion_soin_utilisee}")
             click.echo(f"  Can poison: {not player.potion_poison_utilisee}")
-            
+
             abilities = []
             if not player.potion_soin_utilisee:
                 abilities.append("Use Healing Potion")
             if not player.potion_poison_utilisee:
                 abilities.append("Use Poison Potion")
             abilities.append("Back")
-            
+
             if len(abilities) > 1:
                 questions = [
                     inquirer.List(
@@ -191,7 +191,7 @@ class WerewolvesCLI:
                         carousel=True
                     ),
                 ]
-                
+
                 try:
                     answers = inquirer.prompt(questions)
                     if answers and answers['ability'] != "Back":
@@ -203,11 +203,11 @@ class WerewolvesCLI:
                             click.echo(click.style(f"  ☠️ Poison potion used: {result}", fg='red'))
                 except KeyboardInterrupt:
                     pass
-        
+
         elif isinstance(player, Voyante):
             click.echo("🔮 Voyante Abilities:")
             click.echo(f"  Investigations made: {len(player.investigations)}")
-            
+
             other_players = [p for p in self.game.players if p != player and p.alive]
             if other_players:
                 questions = [
@@ -218,7 +218,7 @@ class WerewolvesCLI:
                         carousel=True
                     ),
                 ]
-                
+
                 try:
                     answers = inquirer.prompt(questions)
                     if answers and answers['target'] != "Back":
@@ -230,11 +230,11 @@ class WerewolvesCLI:
                             click.echo(click.style(f"  ❌ Already investigated {target.name}", fg='yellow'))
                 except KeyboardInterrupt:
                     pass
-        
+
         elif isinstance(player, LoupGarou):
             click.echo("🐺 Loup Garou Abilities:")
             click.echo(f"  Current vote: {player.vote.name if player.vote else 'None'}")
-            
+
             villagers = [p for p in self.game.players if p.role != Role.LOUP_GAROU and p.alive]
             if villagers:
                 questions = [
@@ -245,7 +245,7 @@ class WerewolvesCLI:
                         carousel=True
                     ),
                 ]
-                
+
                 try:
                     answers = inquirer.prompt(questions)
                     if answers and answers['target'] != "Back":
@@ -254,7 +254,7 @@ class WerewolvesCLI:
                         click.echo(click.style(f"  🗳️ Voted to kill {target.name}: {result}", fg='red'))
                 except KeyboardInterrupt:
                     pass
-                
+
         elif isinstance(player, Chasseur):
             click.echo("🏹 Chasseur Abilities:")
             click.echo(f"  Current vote: {player.vote.name if player.vote else 'None'}")
@@ -322,14 +322,14 @@ class WerewolvesCLI:
         if not self.game:
             click.echo(click.style("❌ No game active. Create a game first.", fg='red'))
             return
-        
+
         alive_players = [p for p in self.game.players if p.alive]
         if len(alive_players) < 2:
             click.echo(click.style("❌ Need at least 2 alive players for lover test", fg='red'))
             return
-        
+
         click.echo(click.style("\n💕 Lover Death Simulation", fg='magenta', bold=True))
-        
+
         try:
             # Select first lover
             questions = [
@@ -340,14 +340,14 @@ class WerewolvesCLI:
                     carousel=True
                 ),
             ]
-            
+
             answers = inquirer.prompt(questions)
             if not answers:
                 return
-            
+
             player1 = next(p for p in alive_players if p.name == answers['player1'])
             remaining_players = [p for p in alive_players if p != player1]
-            
+
             # Select second lover
             questions = [
                 inquirer.List(
@@ -357,20 +357,20 @@ class WerewolvesCLI:
                     carousel=True
                 ),
             ]
-            
+
             answers = inquirer.prompt(questions)
             if not answers:
                 return
-            
+
             player2 = next(p for p in remaining_players if p.name == answers['player2'])
-            
+
             # Set as lovers
             player1.lover = player2
             player2.lover = player1
-            
+
             click.echo(f"\n💕 {player1.name} and {player2.name} are now lovers")
             click.echo(f"Before: {player1.name} alive: {player1.alive}, {player2.name} alive: {player2.alive}")
-            
+
             # Ask which lover to kill
             questions = [
                 inquirer.List(
@@ -380,13 +380,13 @@ class WerewolvesCLI:
                     carousel=True
                 ),
             ]
-            
+
             answers = inquirer.prompt(questions)
             if answers:
                 victim = player1 if answers['victim'] == player1.name else player2
                 victim.Kill()
                 click.echo(click.style(f"After killing {victim.name}: {player1.name} alive: {player1.alive}, {player2.name} alive: {player2.alive}", fg='red'))
-                
+
         except KeyboardInterrupt:
             click.echo(click.style("\n❌ Lover death simulation cancelled", fg='yellow'))
 
@@ -394,11 +394,11 @@ class WerewolvesCLI:
         """Show role distribution for different player counts"""
         click.echo(click.style("\n📊 Role Distribution Rules:", fg='cyan', bold=True))
         click.echo("=" * 60)
-        
+
         for num_players in sorted(self.distributor.ROLE_DISTRIBUTIONS.keys()):
             variants = self.distributor.ROLE_DISTRIBUTIONS[num_players]
             click.echo(f"\n{click.style(f'{num_players} players:', fg='yellow')} ({len(variants)} variant{'s' if len(variants) > 1 else ''})")
-            
+
             for i, variant in enumerate(variants):
                 balance = self.distributor._calculate_balance_score(variant)
                 click.echo(f"  Variant {i+1} ({balance}):")
@@ -406,8 +406,10 @@ class WerewolvesCLI:
                     role_name = role.value.replace('_', ' ').title()
                     click.echo(f"    {role_name}: {count}")
 
+
 # Global CLI instance
 cli_instance = WerewolvesCLI()
+
 
 @click.group(invoke_without_command=True)
 @click.option('--players', '-p', multiple=True, help='Player names for quick game creation')
@@ -424,6 +426,7 @@ def cli(ctx, players):
             # Interactive mode
             interactive_menu()
 
+
 @cli.command()
 @click.argument('player_names', nargs=-1, required=True)
 def create(player_names):
@@ -431,35 +434,42 @@ def create(player_names):
     if cli_instance.create_game(list(player_names), interactive=False):
         cli_instance.show_players()
 
+
 @cli.command()
 def players():
     """Show all players in the current game"""
     cli_instance.show_players()
+
 
 @cli.command()
 def state():
     """Show current game state"""
     cli_instance.show_game_state()
 
+
 @cli.command()
 def mayor():
     """Elect a mayor"""
     cli_instance.elect_mayor()
+
 
 @cli.command()
 def abilities():
     """Test role-specific abilities"""
     cli_instance.test_role_abilities()
 
+
 @cli.command()
 def lovers():
     """Simulate lover death cascade"""
     cli_instance.simulate_lover_death()
 
+
 @cli.command()
 def rules():
     """Show role distribution rules"""
     cli_instance.show_role_distribution_rules()
+
 
 @cli.command()
 @click.argument('num_players', type=click.IntRange(4, 12))
@@ -467,10 +477,12 @@ def variants(num_players):
     """Show all role distribution variants for a specific number of players"""
     cli_instance.distributor.show_all_variants(num_players)
 
+
 @cli.command()
 def interactive():
     """Start interactive mode"""
     interactive_menu()
+
 
 def interactive_menu():
     """Interactive menu using inquirer"""
@@ -478,12 +490,12 @@ def interactive_menu():
         click.echo("\n" + "="*50)
         click.echo(click.style("🐺 WEREWOLVES GAME CLI TOOL", fg='green', bold=True))
         click.echo("="*50)
-        
+
         if cli_instance.game:
             click.echo(f"Current Game: {click.style(cli_instance.game.uid, fg='cyan')} | Round: {cli_instance.game.round_number}")
         else:
             click.echo(click.style("No active game", fg='yellow'))
-        
+
         menu_choices = [
             ("Create new game", "create-game"),
             ("Show players", "show-players"),
@@ -494,7 +506,7 @@ def interactive_menu():
             ("Show role distribution rules", "show-rules"),
             ("Exit", "exit")
         ]
-        
+
         try:
             questions = [
                 inquirer.List(
@@ -504,14 +516,14 @@ def interactive_menu():
                     carousel=True
                 ),
             ]
-            
+
             answers = inquirer.prompt(questions)
             if not answers:
                 break
-            
+
             # Extract action key from choice
             action_key = answers['action'].split('(')[-1].rstrip(')')
-            
+
             if action_key == "exit":
                 click.echo(click.style("👋 Goodbye!", fg='green'))
                 break
@@ -529,12 +541,13 @@ def interactive_menu():
                 cli_instance.simulate_lover_death()
             elif action_key == "show-rules":
                 cli_instance.show_role_distribution_rules()
-                
+
         except KeyboardInterrupt:
             click.echo(click.style("\n👋 Goodbye!", fg='green'))
             break
         except Exception as e:
             click.echo(click.style(f"❌ Error: {e}", fg='red'))
+
 
 def create_game_interactive():
     """Interactive game creation using inquirer"""
@@ -549,13 +562,13 @@ def create_game_interactive():
                 carousel=True
             ),
         ]
-        
+
         answers = inquirer.prompt(questions)
         if not answers:
             return
-        
+
         num_players = int(answers['num_players'])
-        
+
         # Get player names
         player_names = []
         for i in range(num_players):
@@ -567,21 +580,22 @@ def create_game_interactive():
                     validate=lambda _, x: len(x.strip()) > 0 or "Name cannot be empty"
                 ),
             ]
-            
+
             answers = inquirer.prompt(questions)
             if not answers:
                 return
-            
+
             name = answers['name'].strip() or f"Player{i+1}"
             player_names.append(name)
-        
+
         # Create game with interactive role selection
         cli_instance.create_game(player_names, interactive=True)
-        
+
     except KeyboardInterrupt:
         click.echo(click.style("\n❌ Game creation cancelled", fg='yellow'))
     except Exception as e:
         click.echo(click.style(f"❌ Error: {e}", fg='red'))
+
 
 if __name__ == "__main__":
     cli()
