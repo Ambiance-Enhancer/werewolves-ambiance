@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-CLI tool for testing Werewolves game models
+CLI to run a Werewolves game
 """
 import click
 import inquirer

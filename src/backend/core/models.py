@@ -1,6 +1,10 @@
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional
 from enum import Enum
+import uuid
+import click
+import inquirer
+from backend.core.role_distributor import set_lineup, distribute_roles
 
 
 class GameStatus(Enum):
@@ -70,16 +74,17 @@ class ActionType(Enum):
     KILL = "kill"
     HEAL = "heal"
     POISON = "poison"
-    INVESTIGATE = "investigate"
+    REVEAL = "reveal"
     CHOOSE_LOVERS = "choose_lovers"
     STEAL_ROLE = "steal_role"
-    REVEGE_KILL = "revenge_kill"
+    REVENGE_KILL = "revenge_kill"
 
 
 @dataclass
 class Player:
     name: str
     role: Role
+    game: Optional['Game'] = None  # Reference to the game instance
     alive: bool = True
     isRevealed: bool = False
     isMayor: bool = False
@@ -112,7 +117,7 @@ class Game:
     period: State
     round_number: int = 1
     players: List[Player] = field(default_factory=list)
-    roles_alive: Dict[str, int] = field(default_factory=dict)
+    lineup: Dict[Role, int] = field(default_factory=dict)
     gameLog: List[Log] = field(default_factory=list)
 
     def electMayor(self, players: List[Player]) -> bool:
@@ -151,11 +156,63 @@ class Game:
             return True
         return False
 
-    def getPlayerByName(self, name: str) -> Optional[Player]:
-        for player in self.players:
-            if player.name == name:
-                return player
-        return None
+    def __init__(self):
+        """Initialize a player by asking the user game parameters"""
+        self.uid = str(uuid.uuid4())[:8]
+
+        # Initialize players list
+        self.players = []
+        try:
+            # Select number of players
+            questions = [
+                inquirer.List(
+                    'num_players',
+                    message="How many players?",
+                    choices=[str(i) for i in range(4, 13)],
+                    default="6",
+                    carousel=True
+                ),
+            ]
+
+            answers = inquirer.prompt(questions)
+            if not answers:
+                return
+
+            num_players = int(answers['num_players'])
+
+            for i in range(num_players):
+                questions = [
+                    inquirer.Text(
+                        'name',
+                        message=f"Enter name for player {i+1}",
+                        default=f"Player{i+1}",
+                        validate=lambda _, x: len(x.strip()) > 0 or "Name cannot be empty"
+                    ),
+                ]
+
+                answers = inquirer.prompt(questions)
+                if not answers:
+                    return
+
+                name = answers['name'].strip() or f"Player{i+1}"
+                self.players.append(Player(name=name, game=self))
+
+        except KeyboardInterrupt:
+            click.echo(click.style("\n❌ Game creation cancelled", fg='yellow'))
+        except Exception as e:
+            click.echo(click.style(f"❌ Error: {e}", fg='red'))
+
+        # Ask for a lineup selection and assign roles
+        self.lineup = set_lineup(len(self.players))
+        self.players = distribute_roles(self.lineup, self.players)
+
+    def save_action(self, actor: Player, action: ActionType, target: Player):
+        """Save an action to the game log"""
+        self.gameLog[self.round_number - 1].actions.append(Action(
+            actor=actor,
+            action=action,
+            target=target
+        ))
 
 
 @dataclass
@@ -163,66 +220,64 @@ class Sorciere(Player):
     potion_soin_utilisee: bool = False
     potion_poison_utilisee: bool = False
 
-    def heal(self, target: str) -> bool:
+    def heal(self, target: str):
         if not self.potion_soin_utilisee:
             self.potion_soin_utilisee = True
-            return True
-        return False
+            target.isAlive = True
+            self.game.save_action(self, ActionType.HEAL, target)
 
-    def poison(self, target: str) -> bool:
+    def poison(self, target: str):
         if not self.potion_poison_utilisee:
             self.potion_poison_utilisee = True
-            return True
-        return False
+            target.isAlive = False
+            self.game.save_action(self, ActionType.POISON, target)
 
 
 @dataclass
 class Voyante(Player):
     investigations: Dict[str, Role] = field(default_factory=dict)
 
-    def reveal(self, target: Player) -> bool:
+    def reveal(self, target: Player):
         """Reveal a player's role during the night"""
         if target not in self.investigations:
             self.investigations[target] = target.role
-            return True
-        return False
+            self.game.save_action(self, ActionType.REVEAL, target)
 
 
 @dataclass
 class LoupGarou(Player):
     vote: Player = None
 
-    def vote_kill(self, target: Player) -> bool:
+    def vote_kill(self, target: Player):
         """Vote to kill a player during the night"""
         self.vote = target  # Reuse the vote field for night kills
-        return True
+        self.game.save_action(self, ActionType.VOTE, target)
 
 
 @dataclass
 class Chasseur(Player):
     revenge_target: Player = None
 
-    def choose_revenge_target(self, target: Player) -> bool:
+    def choose_revenge_target(self, target: Player):
         """Choose who to kill when dying"""
         if not self.alive and self.revenge_target is None:
             self.revenge_target = target
             target.Kill()
-            return True
-        return False
+            self.game.save_action(self, ActionType.REVENGE, target)
 
 
 @dataclass
 class Cupidon(Player):
     lovers_chosen: tuple[Player, Player] = field(default_factory=tuple)
 
-    def choose_lovers(self, player1: Player, player2: Player) -> bool:
+    def choose_lovers(self, player1: Player, player2: Player):
         """Choose two players to be lovers"""
         if not self.lovers_chosen:
             self.lovers_chosen = (player1, player2)
             player1.lover = player2
             player2.lover = player1
-            return True
-        return False
+            self.game.save_action(self, ActionType.CHOOSE_LOVERS, player1)
+            self.game.save_action(self, ActionType.CHOOSE_LOVERS, player2)
 
 
 @dataclass
@@ -230,12 +285,11 @@ class Voleur(Player):
     role_stolen: bool = False
     original_role: Optional[Role] = None
 
-    def steal_role(self, target: Player) -> bool:
+    def steal_role(self, target: Player):
         """Steal a role at the beginning of the game"""
         if not self.role_stolen:
             self.original_role = target.role
-            target.role = self.role
+            target.role = self
             self.role = self.original_role
             self.role_stolen = True
-            return True
-        return False
+            self.game.save_action(self, ActionType.STEAL_ROLE, target)
