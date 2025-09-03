@@ -1,8 +1,18 @@
-from ast import List
-from random import random
+from enum import Enum
 from typing import Dict
-from backend.core.models import Player, Role
 import inquirer
+
+
+class Role(Enum):
+    VILLAGEOIS = "villageois"
+    LOUP_GAROU = "loup_garou"
+    PETITE_FILLE = "petite_fille"
+    CHASSEUR = "chasseur"
+    SORCIERE = "sorciere"
+    VOYANTE = "voyante"
+    CUPIDON = "cupidon"
+    VOLEUR = "voleur"
+
 
 ROLE_DISTRIBUTIONS = {
     4: [
@@ -110,22 +120,3 @@ def set_lineup(num_players: int) -> Dict[Role, int]:
     except (KeyboardInterrupt, EOFError):
         print("\n⚠️ Selection cancelled, using default variant")
         return variants[0].copy()
-
-
-def distribute_roles(lineup: Dict[Role, int], players: List[Player]) -> List[Player]:
-    """Assign balanced roles to players"""
-    if len(players) != sum(lineup.values()):
-        raise ValueError("Number of players must match role distribution")
-
-    # Create list of roles based on counts
-    roles_list: List[Role] = []
-    for role, count in lineup.items():
-        roles_list.extend([role] * count)
-
-    # Shuffle roles for random distribution
-    random.shuffle(roles_list)
-
-    for i, player in enumerate(players):
-        player.role = roles_list[i]
-
-    return players
