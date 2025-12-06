@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from random import shuffle
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Type
 from enum import Enum
 import uuid
 import click
@@ -74,7 +74,6 @@ class ActionType(Enum):
 class Player:
     name: str
     role: Optional[Role] = None
-    game: Optional['Game'] = None  # Reference to the game instance
     alive: bool = True
     isRevealed: bool = False
     isMayor: bool = False
@@ -111,7 +110,7 @@ class Game:
     gameLog: List[Log] = field(default_factory=list)
 
     def __init__(self, num_players: int):
-        """Initialize a player by asking the user game parameters"""
+        """Initialize a gane by asking the user game parameters (players number, composition)"""
         self.uid = str(uuid.uuid4())[:8]
         self.status = GameStatus.WAITING
         self.period = State.START_UP
@@ -156,7 +155,7 @@ class Game:
                     return
 
                 name = answers['name'].strip() or f"Player{i+1}"
-                self.players.append(Player(name=name, game=self))
+                self.players.append(Player(name=name))
 
             if self.players:
                 try:
@@ -173,7 +172,7 @@ class Game:
         except Exception as e:
             click.echo(click.style(f"❌ Error: {e}", fg='red'))
 
-    def electMayor(self, players: List[Player]) -> bool:
+    def elect_mayor(self, players: List[Player]) -> bool:
         """Elect a mayor among the players"""
         voteResults = {}
         for player in players:
@@ -239,7 +238,7 @@ class Game:
                 click.echo(f"    Lover: {lover}")
             click.echo()
 
-    def select_player(self, author: Player = None, players: Optional[List[Player]] = None, alive: bool = True, isRevealed: Optional[bool] = None, can_select_self: bool = False) -> Player:
+    def select_player(self, author: Player = None, players: Optional[List[Player]] = None, alive: bool = True, isRevealed: Optional[bool] = None, can_select_self: bool = False, can_select_none: bool = False) -> Player:
         """
         Prompt the user to select one or more players from the list, filtered by given attributes.
         Args:
@@ -261,6 +260,8 @@ class Game:
         ]
 
         choices = [player.name for player in filtered_players]
+        if can_select_none:
+            choices.insert(0, "None")
         if not choices:
             click.echo("No players available for selection.")
             return None
@@ -277,7 +278,7 @@ class Game:
         answers = inquirer.prompt(questions)
         if not answers:
             return None
-        return [self.getPlayerByName(answers['player'])]
+        return self.get_player_by_name(answers['player'])
 
     def show_game_state(self):
         """Display current game state"""
@@ -291,15 +292,13 @@ class Game:
 
     def loup_garou_kill(self):
         """Vote to kill a player during the night"""
-        target = self.get_target_player()
-        target.kill()
-        self.game.save_action(self, ActionType.KILL, target)
+        target = self.select_player(alive=True, can_select_self=False)
+        if target:
+            target.kill()
 
-    def village_vote(self):
+    def village_vote(self, target: Player):
         """Vote to kill a player during the day"""
-        target = self.get_target_player()
         target.kill()
-        self.game.save_action(self, ActionType.VOTE, target)
 
     def distribute_roles(self):
         """Assign balanced roles to players"""
@@ -314,70 +313,115 @@ class Game:
         # Shuffle roles for random distribution
         shuffle(roles_list)
 
-        for i, player in enumerate(self.players):
-            player.role = roles_list[i]
+        # Mapping from Role enum to class
+        role_class_map = {
+            Role.CUPIDON: Cupidon,
+            Role.VOYANTE: Voyante,
+            Role.SORCIERE: Sorciere,
+            Role.CHASSEUR: Chasseur,
+            Role.VOLEUR: Voleur,
+            Role.LOUP_GAROU: Player,  # or a LoupGarou class if you have one
+            Role.VILLAGEOIS: Player,
+        }
 
+        for i, player in enumerate(self.players):
+            role_enum = roles_list[i]
+            role_class = role_class_map.get(role_enum, Player)
+            
+            # Create new instance of the role class with player's data
+            new_player = role_class(name=player.name)
+            new_player.role = role_enum
+            self.players[i] = new_player
+
+    def get_role_instance(self, role_class: Type[Role]) -> Player:
+        """Get the instance of a specific role class"""
+        # Convert class name to enum name (e.g., Cupidon -> CUPIDON)
+        role_enum_name = role_class.__name__.upper()
+        # Find matching role enum
+        try:
+            role_enum = Role[role_enum_name]
+        except KeyError:
+            return None
+        
+        # Find and return first player with this role
+        for player in self.players:
+            if player.role == role_enum:
+                return player
+        
+        return None
+
+    def get_player_by_name(self, name: str) -> Optional[Player]:
+        """Retrieve a player by their name"""
+        for player in self.players:
+            if player.name == name:
+                return player
+        return None
 
 @dataclass
 class Sorciere(Player):
     potion_soin_utilisee: bool = False
     potion_poison_utilisee: bool = False
 
-    def heal(self):
+    def heal(self, target: Player):
         if not self.potion_soin_utilisee:
             self.potion_soin_utilisee = True
-            target = self.game.get_target_player(author=self, alive=False, can_select_self=True)
             target.isAlive = True
-            self.game.save_action(self, ActionType.HEAL, target)
 
-    def poison(self):
+    def poison(self, target: Player):
         if not self.potion_poison_utilisee:
             self.potion_poison_utilisee = True
-            target = self.game.get_target_player(author=self, alive=True, can_select_self=True)
-            target.isAlive = False
-            self.game.save_action(self, ActionType.POISON, target)
+            target.kill()
+            
+    def choose_player_to_save_or_kill(self, game: Game):
+        """Choose a player to save or kill during the night"""
+        # Choose player to save
+        if not self.potion_soin_utilisee:
+            save_choice = game.select_player(author=self, alive=False, can_select_self=True, can_select_none=True)
+            if save_choice:
+                self.heal(save_choice)
+
+        # Choose player to poison
+        if not self.potion_poison_utilisee:
+            poison_choice = game.select_player(author=self, alive=True, can_select_self=True, can_select_none=True)
+            if poison_choice:
+                self.poison(poison_choice)
 
 
 @dataclass
 class Voyante(Player):
     investigations: Dict[str, Role] = field(default_factory=dict)
 
-    def reveal(self):
+    def choose_player_to_see(self, game: Game):
         """Reveal a player's role during the night"""
-        target = self.game.get_target_player(author=self, alive=True)
-        if target not in self.investigations:
-            self.investigations[target] = target.role
-            self.game.save_action(self, ActionType.REVEAL, target)
+        target = game.select_player(author=self, alive=True, can_select_self=False)
+        if target.name not in self.investigations:
+            self.investigations[target.name] = target.role
+        print(f"🔍 Voyante {self.name} sees that {target.name} is a {target.role.value.replace('_', ' ').title()}")
 
 
 @dataclass
 class Chasseur(Player):
     revenge_target: Player = None
 
-    def choose_revenge_target(self):
+    def choose_revenge_target(self, target: Player):
         """Choose who to kill when dying"""
-        target = self.game.get_target_player(author=self, alive=True)
         if not self.alive and self.revenge_target is None:
             self.revenge_target = target
             target.Kill()
-            self.game.save_action(self, ActionType.REVENGE, target)
 
 
 @dataclass
 class Cupidon(Player):
     lovers_chosen: tuple[Player, Player] = field(default_factory=tuple)
 
-    def choose_lovers(self):
+    def choose_lovers(self, game: Game):
         """Choose two players to be lovers"""
-        player1 = self.game.get_target_player(author=self, alive=True, can_select_self=True)
-        filtered_players = [p for p in self.game.players if p.alive and p != player1]
-        player2 = self.game.get_target_player(author=self, players=filtered_players, alive=True, can_select_self=True)
+        player1 = game.select_player(author=self, alive=True, can_select_self=True)
+        player2 = game.select_player(author=self, players=[p for p in game.players if p != player1], alive=True, can_select_self=True)
         if not self.lovers_chosen:
             self.lovers_chosen = (player1, player2)
             player1.lover = player2
             player2.lover = player1
-            self.game.save_action(self, ActionType.CHOOSE_LOVERS, player1)
-            self.game.save_action(self, ActionType.CHOOSE_LOVERS, player2)
 
 
 @dataclass
@@ -385,12 +429,10 @@ class Voleur(Player):
     role_stolen: bool = False
     original_role: Optional[Role] = None
 
-    def steal_role(self):
+    def steal_role(self, target: Player):
         """Steal a role at the beginning of the game"""
-        target = self.game.get_target_player(author=self, alive=True)
         if not self.role_stolen:
             self.original_role = target.role
             target.role = self
             self.role = self.original_role
             self.role_stolen = True
-            self.game.save_action(self, ActionType.STEAL_ROLE, target)
