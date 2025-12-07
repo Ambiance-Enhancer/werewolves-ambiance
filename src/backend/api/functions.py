@@ -1,6 +1,7 @@
 import click
 from ..core.models import Game, Cupidon, Voyante, Sorciere, Voleur
 
+
 def first_night_process(game: Game) -> None:
     """Process the first night steps"""
     click.echo("\n\n🌙 First night")
@@ -17,17 +18,17 @@ def first_night_process(game: Game) -> None:
     else:
         click.echo("Voyante is choosing a player to see...")
         voyante.choose_player_to_see(game)
-        
+
     click.echo("LoupGarou is choosing a player to eliminate...")
     game.loup_garou_kill()
-    
+
     sorciere = game.get_role_instance(Sorciere)
     if sorciere is None:
         click.echo("No Sorciere in the game.")
     else:
         click.echo("Sorciere is choosing a player to save or kill...")
         sorciere.choose_player_to_save_or_kill(game)
-    
+
     voleur = game.get_role_instance(Voleur)
     if voleur is None:
         click.echo("No Voleur in the game.")

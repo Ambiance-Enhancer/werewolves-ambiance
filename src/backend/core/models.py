@@ -327,7 +327,7 @@ class Game:
         for i, player in enumerate(self.players):
             role_enum = roles_list[i]
             role_class = role_class_map.get(role_enum, Player)
-            
+
             # Create new instance of the role class with player's data
             new_player = role_class(name=player.name)
             new_player.role = role_enum
@@ -342,12 +342,12 @@ class Game:
             role_enum = Role[role_enum_name]
         except KeyError:
             return None
-        
+
         # Find and return first player with this role
         for player in self.players:
             if player.role == role_enum:
                 return player
-        
+
         return None
 
     def get_player_by_name(self, name: str) -> Optional[Player]:
@@ -356,6 +356,7 @@ class Game:
             if player.name == name:
                 return player
         return None
+
 
 @dataclass
 class Sorciere(Player):
@@ -371,7 +372,7 @@ class Sorciere(Player):
         if not self.potion_poison_utilisee:
             self.potion_poison_utilisee = True
             target.kill()
-            
+
     def choose_player_to_save_or_kill(self, game: Game):
         """Choose a player to save or kill during the night"""
         # Choose player to save
