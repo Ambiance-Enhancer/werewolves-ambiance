@@ -1,5 +1,6 @@
 import click
-from ..core.models import Game, Cupidon, Voyante, Sorciere, Voleur
+from ..core.game import Game
+from ..core.roles import Cupidon, Voyante, Sorciere, Voleur
 
 
 def first_night_process(game: Game) -> None:

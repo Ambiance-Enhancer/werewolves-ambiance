@@ -3,7 +3,7 @@
 CLI to run a Werewolves game
 """
 import click
-from ..core.models import Game
+from ..core.game import Game
 from .functions import first_night_process
 
 
