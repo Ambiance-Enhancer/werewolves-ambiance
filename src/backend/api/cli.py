@@ -17,11 +17,6 @@ def cli(num_players):
     game = Game(num_players)
     game.show_players()
     first_night_process(game)
-    # game.players[0].isMayor = True  # First player is mayor
-    # game.players[0].lover = game.players[1]  # First player loves the second player
-    # game.players[1].lover = game.players[0]
-    # game.players[2].isRevealed = True
-    # game.players[3].alive = False
     game.show_players()
 
 
