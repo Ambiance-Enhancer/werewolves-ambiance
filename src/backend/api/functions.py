@@ -36,4 +36,8 @@ def first_night_process(game: Game) -> None:
     else:
         click.echo("Voleur is choosing a player to steal their role...")
         voleur.choose_player_to_steal(game)
+
+    # Kill doomed lovers at the end of the night
+    game.kill_doomed_lovers()
+
     return

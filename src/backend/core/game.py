@@ -63,12 +63,13 @@ class Player:
     is_revealed: bool = False
     is_mayor: bool = False
     lover: Optional['Player'] = None
+    doomed_by_lover: bool = False
 
     def kill(self) -> None:
-        """Mark the player as dead; if they have an alive lover, also kill them."""
+        """Mark the player as dead; if they have an alive lover, mark them as doomed."""
         self.alive = False
         if self.lover and self.lover.alive:
-            self.lover.kill()
+            self.lover.doomed_by_lover = True
 
 
 @dataclass
@@ -223,7 +224,7 @@ class Game:
                 click.echo(f"    Lover: {lover}")
             click.echo()
 
-    def select_player(self, author: Optional[Player] = None, players: Optional[List[Player]] = None, alive: Optional[bool] = True, is_revealed: Optional[bool] = None, can_select_self: bool = False, can_select_none: bool = False) -> Optional[Player]:
+    def select_player(self, author: Optional[Player] = None, players: Optional[List[Player]] = None, alive: Optional[bool] = True, is_revealed: Optional[bool] = None, can_select_self: bool = False, can_select_none: bool = False, custom_string: str = "") -> Optional[Player]:
         """Prompt user to select a player filtered by criteria. Returns the Player or None."""
         if players is None:
             players = self.players
@@ -245,7 +246,7 @@ class Game:
         questions = [
             inquirer.List(
                 'player',
-                message="Select a player:",
+                message="Select a player" if custom_string == "" else "Select " + custom_string,
                 choices=choices,
                 carousel=True
             ),
@@ -275,9 +276,12 @@ class Game:
         if target:
             target.kill()
 
-    def village_vote(self, target: Player) -> None:
-        """Execute a village vote result to kill a player."""
-        target.kill()
+    def kill_doomed_lovers(self) -> None:
+        """Kill players who are doomed by their lover's death."""
+        for player in self.players:
+            if player.doomed_by_lover:
+                player.alive = False
+                player.doomed_by_lover = False  # Reset the flag
 
     def distribute_roles(self) -> None:
         """Distribute roles to players according to `self.lineup`. Imports role classes at runtime to avoid circular imports."""
