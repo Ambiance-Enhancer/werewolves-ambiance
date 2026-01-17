@@ -1,5 +1,5 @@
 # Default owners for everything in the repo
-* @Ambiance-Enhancer/dev
+* @Ambiance-Enhancer/admins
 
 .github/ @Ambiance-Enhancer/infra
 src/backend/ @Ambiance-Enhancer/backend
