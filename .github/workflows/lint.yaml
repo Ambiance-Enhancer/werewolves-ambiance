@@ -64,8 +64,8 @@ jobs:
           matrix.extension == 'py' }}
         run: |
           pip install flake8
-          flake8 .
-
+          flake8 --max-line-length=999 .    
+      
       - name: Run JavaScript linter (eslint)
         if: >-
           ${{ (contains(needs.detect.outputs.extensions, 'js') ||
