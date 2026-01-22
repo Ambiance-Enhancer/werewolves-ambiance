@@ -393,7 +393,7 @@ class Game:
         for p in alive_players:
             counts[p.camp] += 1
 
-        villagers_count = counts[Camp.VILLAGEOIS]
+        # villagers_count = counts[Camp.VILLAGEOIS]
         wolves_count = counts[Camp.LOUP_GAROU]
         lovers_count = counts[Camp.AMOUREUX]
 
