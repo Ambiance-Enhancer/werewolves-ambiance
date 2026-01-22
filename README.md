@@ -3,6 +3,11 @@
 Yo, alors le but de ce repository c'est de créer un générateur de bruits ambiants lors d'une partie de Loup-Garous par **détection vocale**.
 Dans un soucis de simplicité, nous commencerons par une partie en **français** uniquement !
 
+Pour lancer le cli (une fois dans l'env evidemment on est pas des sauvages):
+```
+python -m src.backend.api.cli
+```
+
 ## Composition du projet
 
 Il y a plusieurs parties au projet :

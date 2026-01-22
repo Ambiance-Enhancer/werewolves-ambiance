@@ -22,10 +22,11 @@ class Sorciere(Player):
             target.kill()
 
     def choose_player_to_save_or_kill(self, game: 'Game') -> None:  # type: ignore[name-defined]
-        if not self.potion_soin_utilisee:
-            save_choice = game.select_player(author=self, alive=False, can_select_self=True, can_select_none=True)
+        if not self.potion_soin_utilisee and game.recently_killed:
+            save_choice = game.select_player(author=self, players=game.recently_killed, alive=False, can_select_self=True, can_select_none=True)
             if save_choice:
                 self.heal(save_choice)
+                game.recently_killed.remove(save_choice)
 
         if not self.potion_poison_utilisee:
             poison_choice = game.select_player(author=self, alive=True, can_select_self=True, can_select_none=True)

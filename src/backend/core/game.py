@@ -43,6 +43,13 @@ class DayState(Enum):
     COMPLETED = "completed"
 
 
+class Camp(Enum):
+    """Represents the team/camp of a player"""
+    VILLAGEOIS = "villageois"
+    LOUP_GAROU = "loup_garou"
+    AMOUREUX = "amoureux"
+
+
 class ActionType(Enum):
     VOTE = "vote"
     KILL = "kill"
@@ -62,6 +69,24 @@ class Player:
     alive: bool = True
     is_revealed: bool = False
     is_mayor: bool = False
+
+    @property
+    def camp(self) -> Camp:
+        """Determine the player's camp (Team)."""
+        # If part of a mixed couple (Wolf + Villager), they form a separate camp
+        if self.lover and self.role and self.lover.role:
+            my_is_wolf = (self.role == Role.LOUP_GAROU)
+            lover_is_wolf = (self.lover.role == Role.LOUP_GAROU)
+            
+            # XOR: if one is wolf and the other is not
+            if my_is_wolf != lover_is_wolf:
+                return Camp.AMOUREUX
+        
+        # Otherwise, camp is determined by role
+        if self.role == Role.LOUP_GAROU:
+            return Camp.LOUP_GAROU
+            
+        return Camp.VILLAGEOIS
     lover: Optional['Player'] = None
 
     def kill(self) -> None:
@@ -97,6 +122,7 @@ class Game:
     players: List[Player] = field(default_factory=list)
     lineup: Dict[Role, int] = field(default_factory=dict)
     game_log: List[Log] = field(default_factory=list)
+    recently_killed: List[Player] = field(default_factory=list)
 
     def __init__(self, num_players: int) -> None:
         self.uid = str(uuid.uuid4())[:8]
@@ -106,6 +132,7 @@ class Game:
         self.players = []
         self.lineup = {}
         self.game_log = []
+        self.recently_killed = []
 
         try:
             if num_players == -1:
@@ -160,38 +187,28 @@ class Game:
             click.echo(click.style(f"❌ Error: {e}", fg='red'))
 
     def elect_mayor(self, players: List[Player]) -> bool:
-        """Elect a mayor among provided players via simple text votes."""
-        vote_results: Dict[str, int] = {}
-        for player in players:
-            input_vote = input(f"{player.name}, vote for a mayor: ")
-            vote_results[input_vote] = vote_results.get(input_vote, 0) + 1
-            # record vote in log if a log exists for the round
-            if self.game_log:
-                self.game_log[self.round_number - 1].actions.append(Action(
-                    actor=player,
-                    action=ActionType.VOTE,
-                    target=self.get_player_by_name(input_vote)
-                ))
-
-        if not vote_results:
-            return False
-
-        max_votes = max(vote_results.values())
-        candidates = [
-            self.get_player_by_name(name)
-            for name, votes in vote_results.items()
-            if votes == max_votes
-        ]
-
-        if len(candidates) > 1:
-            # Re-run election among tied candidates
-            return self.elect_mayor(candidates)
-
-        new_mayor = candidates[0] if candidates else None
-        if new_mayor:
-            new_mayor.is_mayor = True
+        """Elect a mayor by inputting the name of the chosen player (external vote)."""
+        input_name = input("Enter the name of the player elected as Mayor: ").strip()
+        chosen = self.get_player_by_name(input_name)
+        if chosen and chosen.alive:
+            for p in self.players:
+                p.is_mayor = False
+            chosen.is_mayor = True
+            click.echo(f"👑 {chosen.name} is now the Mayor!")
             return True
+        click.echo("❌ Invalid name or player not alive. No Mayor elected.")
         return False
+
+    def village_vote_input(self) -> Optional[Player]:
+        """Input the name of the player chosen by the village to be eliminated."""
+        input_name = input("Enter the name of the player eliminated by the village: ").strip()
+        chosen = self.get_player_by_name(input_name)
+        if chosen and chosen.alive:
+            self.village_vote(chosen)
+            click.echo(f"💀 {chosen.name} has been eliminated by the village!")
+            return chosen
+        click.echo("❌ Invalid name or player not alive. No one eliminated.")
+        return None
 
     def save_action(self, actor: Player, action: ActionType, target: Player) -> None:
         """Save an action to the current game's log."""
@@ -273,6 +290,7 @@ class Game:
         """Kill a selected player during wolf night action."""
         target = self.select_player(alive=True, can_select_self=False)
         if target:
+            self.recently_killed.append(target)
             target.kill()
 
     def village_vote(self, target: Player) -> None:
@@ -329,3 +347,42 @@ class Game:
             if player.name == name:
                 return player
         return None
+
+    def is_over(self) -> bool:
+        """Check if the game is over based on Camps."""
+        alive_players = [p for p in self.players if p.alive]
+        
+        if not alive_players:
+            click.echo("\n💀 Everyone is dead. Nobody wins.")
+            self.status = GameStatus.FINISHED
+            return True
+
+        # Count players per camp
+        counts = {
+            Camp.VILLAGEOIS: 0,
+            Camp.LOUP_GAROU: 0,
+            Camp.AMOUREUX: 0
+        }
+        
+        for p in alive_players:
+            counts[p.camp] += 1
+            
+        villagers_count = counts[Camp.VILLAGEOIS]
+        wolves_count = counts[Camp.LOUP_GAROU]
+        lovers_count = counts[Camp.AMOUREUX]
+
+        # Count how many camps have players
+        camps_alive = sum(1 for count in counts.values() if count > 0)
+        
+        # Game ends only when all remaining players are from the same camp
+        if camps_alive == 1:
+            if lovers_count > 0:
+                click.echo("\n💕 The Lovers have won! Love conquers all.")
+            elif wolves_count > 0:
+                click.echo("\n🐺 The Werewolves have won!")
+            else:
+                click.echo("\n🎉 The Village has won!")
+            self.status = GameStatus.FINISHED
+            return True
+        
+        return False
