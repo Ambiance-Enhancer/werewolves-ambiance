@@ -9,16 +9,18 @@ from src.backend.core.roles import Cupidon, Voleur, Voyante, Sorciere, Chasseur
 
 # Ordre classique des rôles pour la nuit du Loup-Garou
 ROLES_ORDER: List[Type] = [
-    Cupidon,    # Cupidon agit en premier (première nuit)
-    Voleur,     # Voleur (première nuit)
-    Voyante,    # Voyante
-    Sorciere,   # Sorcière
-    Chasseur,   # Chasseur (agit à la mort, mais on le garde pour l'ordre)
+    Cupidon,  # Cupidon agit en premier (première nuit)
+    Voleur,  # Voleur (première nuit)
+    Voyante,  # Voyante
+    Sorciere,  # Sorcière
+    Chasseur,  # Chasseur (agit à la mort, mais on le garde pour l'ordre)
 ]
+
 
 def get_roles_order_for_game(game) -> List[Type]:
     """
-    Retourne la liste ordonnée des classes de rôles à appeler selon les rôles présents dans la partie.
+    Retourne la liste ordonnée des classes de rôles à appeler
+    selon les rôles présents dans la partie.
     :param game: instance de Game
     :return: liste ordonnée des classes de rôles présents dans la partie
     """
