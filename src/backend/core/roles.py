@@ -8,6 +8,7 @@ from .role_distributor import Role
 @dataclass
 class Sorciere(Player):
     """Witch role: can heal or poison once."""
+
     potion_soin_utilisee: bool = False
     potion_poison_utilisee: bool = False
 
@@ -21,14 +22,24 @@ class Sorciere(Player):
             self.potion_poison_utilisee = True
             target.kill()
 
-    def choose_player_to_save_or_kill(self, game: 'Game') -> None:  # type: ignore[name-defined]
-        if not self.potion_soin_utilisee:
-            save_choice = game.select_player(author=self, alive=False, can_select_self=True, can_select_none=True, custom_string="a player to save")
+    def choose_player_to_save_or_kill(self, game: "Game") -> None:  # type: ignore[name-defined]
+        if not self.potion_soin_utilisee and game.recently_killed:
+
+            save_choice = game.select_player(
+                author=self,
+                players=game.recently_killed,
+                alive=False,
+                can_select_self=True,
+                can_select_none=True,
+            )
             if save_choice:
                 self.heal(save_choice)
+                game.recently_killed.remove(save_choice)
 
         if not self.potion_poison_utilisee:
-            poison_choice = game.select_player(author=self, alive=True, can_select_self=True, can_select_none=True, custom_string="a player to kill")
+            poison_choice = game.select_player(
+                author=self, alive=True, can_select_self=True, can_select_none=True
+            )
             if poison_choice:
                 self.poison(poison_choice)
 
@@ -36,18 +47,22 @@ class Sorciere(Player):
 @dataclass
 class Voyante(Player):
     """Seer role: can reveal a player's role."""
+
     investigations: Dict[str, Role] = field(default_factory=dict)
 
-    def choose_player_to_see(self, game: 'Game') -> None:  # type: ignore[name-defined]
-        target = game.select_player(author=self, alive=True, can_select_self=False, custom_string="a player to see")
+    def choose_player_to_see(self, game: "Game") -> None:  # type: ignore[name-defined]
+        target = game.select_player(author=self, alive=True, can_select_self=False)
         if target and target.name not in self.investigations:
             self.investigations[target.name] = target.role
-            click.echo(f"🔍 Voyante {self.name} sees that {target.name} is a {target.role.value.replace('_', ' ').title()}")
+            click.echo(
+                f"🔍 Voyante {self.name} sees that {target.name} is a {target.role.value.replace('_', ' ').title()}"
+            )
 
 
 @dataclass
 class Chasseur(Player):
     """Hunter role: chooses a revenge target when dying."""
+
     revenge_target: Optional[Player] = None
 
     def choose_revenge_target(self, target: Player) -> None:
@@ -59,13 +74,19 @@ class Chasseur(Player):
 @dataclass
 class Cupidon(Player):
     """Cupid: binds two players as lovers."""
+
     lovers_chosen: tuple = field(default_factory=tuple)
 
-    def choose_lovers(self, game: 'Game') -> None:  # type: ignore[name-defined]
-        player1 = game.select_player(author=self, alive=True, can_select_self=True, custom_string="1st lover")
+    def choose_lovers(self, game: "Game") -> None:  # type: ignore[name-defined]
+        player1 = game.select_player(author=self, alive=True, can_select_self=True)
         if not player1:
             return
-        player2 = game.select_player(author=self, players=[p for p in game.players if p != player1], alive=True, can_select_self=True, custom_string="2nd lover")
+        player2 = game.select_player(
+            author=self,
+            players=[p for p in game.players if p != player1],
+            alive=True,
+            can_select_self=True,
+        )
         if player2 and not self.lovers_chosen:
             self.lovers_chosen = (player1, player2)
             player1.lover = player2
@@ -75,14 +96,9 @@ class Cupidon(Player):
 @dataclass
 class Voleur(Player):
     """Thief: can steal another player's role at the beginning."""
+
     role_stolen: bool = False
     original_role: Optional[Role] = None
-
-    def choose_player_to_steal(self, game: 'Game') -> None:  # type: ignore[name-defined]
-        if not self.role_stolen:
-            target = game.select_player(author=self, alive=True, can_select_self=False)
-            if target:
-                self.steal_role(target)
 
     def steal_role(self, target: Player) -> None:
         if not self.role_stolen:
