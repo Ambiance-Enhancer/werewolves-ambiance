@@ -51,7 +51,17 @@ class Voyante(Player):
     investigations: Dict[str, Role] = field(default_factory=dict)
 
     def choose_player_to_see(self, game: "Game") -> None:  # type: ignore[name-defined]
-        target = game.select_player(author=self, alive=True, can_select_self=False)
+        available_players = [
+            player
+            for player in game.players
+            if player.name not in self.investigations
+        ]
+        target = game.select_player(
+            author=self,
+            players=available_players,
+            alive=True,
+            can_select_self=False,
+        )
         if target and target.name not in self.investigations:
             self.investigations[target.name] = target.role
             click.echo(
