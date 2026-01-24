@@ -202,28 +202,22 @@ class Game:
 
     def elect_mayor(self, players: List[Player]) -> bool:
         """Elect a mayor by inputting the name of the chosen player (external vote)."""
-        input_name = input("Enter the name of the player elected as Mayor: ").strip()
-        chosen = self.get_player_by_name(input_name)
-        if chosen and chosen.alive:
+        chosen = self.select_player(alive=True)
+        if chosen:
             for p in self.players:
                 p.is_mayor = False
             chosen.is_mayor = True
             click.echo(f"👑 {chosen.name} is now the Mayor!")
             return True
-        click.echo("❌ Invalid name or player not alive. No Mayor elected.")
         return False
 
     def village_vote_input(self) -> Optional[Player]:
         """Input the name of the player chosen by the village to be eliminated."""
-        input_name = input(
-            "Enter the name of the player eliminated by the village: "
-        ).strip()
-        chosen = self.get_player_by_name(input_name)
-        if chosen and chosen.alive:
+        chosen = self.select_player(alive=True)
+        if chosen:
             self.village_vote(chosen)
             click.echo(f"💀 {chosen.name} has been eliminated by the village!")
             return chosen
-        click.echo("❌ Invalid name or player not alive. No one eliminated.")
         return None
 
     def save_action(self, actor: Player, action: ActionType, target: Player) -> None:
