@@ -1,14 +1,4 @@
 -- Werewolves Ambiance - PostgreSQL init
---
--- Intended container env (recommended):
---   POSTGRES_DB=werewolves
---   POSTGRES_USER=werewolves
---   POSTGRES_PASSWORD=werewolves
---
--- This schema is designed to store:
--- - game status (uid/status/period/round_number)
--- - player status (alive/revealed/mayor/role + role-specific state)
--- - actions/events (who did what to whom, when, in which round/period)
 
 BEGIN;
 

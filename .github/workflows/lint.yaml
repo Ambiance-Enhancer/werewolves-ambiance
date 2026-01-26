@@ -1,92 +1,99 @@
 ---
 name: Lint
 
-on:
+"on":
   push:
     branches: [main]
-  pull_request: {}
+  pull_request:
+    branches: [main]
 
 jobs:
   detect:
     runs-on: ubuntu-latest
     outputs:
-      extensions: ${{ steps.detect.outputs.extensions }}
+      py: ${{ steps.detect.outputs.py }}
+      js: ${{ steps.detect.outputs.js }}
+      ts: ${{ steps.detect.outputs.ts }}
+      sh: ${{ steps.detect.outputs.sh }}
+      yml: ${{ steps.detect.outputs.yml }}
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
           fetch-depth: 0
 
-      - name: Detect file extensions
+      - name: Detect changed file types
         id: detect
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          BASE_REF: ${{ github.base_ref }}
         run: |
-          git fetch origin main
-          if [[ $GITHUB_EVENT_NAME == 'pull_request' ]]; then
-            DIFF=$(git diff --name-only origin/main...HEAD)
-          else
-            DIFF=$(git diff --name-only HEAD~1)
-          fi
-          EXT=$(echo "$DIFF" | awk -F. '/\./{print $NF}' | \
-            sort | uniq | tr '\n' ',' | sed 's/,$//')
-          echo "extensions=$EXT" >> $GITHUB_OUTPUT
+          set -euo pipefail
 
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            git fetch origin "${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+            DIFF="$(git diff --name-only "origin/${BASE_REF}...HEAD")"
+          else
+            DIFF="$(git diff --name-only "${BEFORE_SHA}...${GITHUB_SHA}")"
+          fi
+
+          if echo "$DIFF" | grep -Eq '\.py$'; then has_py=true; else has_py=false ;fi
+          if echo "$DIFF" | grep -Eq '\.js$'; then has_js=true; else has_js=false ;fi
+          if echo "$DIFF" | grep -Eq '\.ts$'; then has_ts=true; else has_ts=false ;fi
+          if echo "$DIFF" | grep -Eq '\.sh$'; then has_sh=true; else has_sh=false ;fi
+          if echo "$DIFF" | grep -Eq '\.(yml|yaml)$'; then has_yml=true; else has_yml=false ;fi
+
+          echo "py=${has_py}" >> "$GITHUB_OUTPUT"
+          echo "js=${has_js}" >> "$GITHUB_OUTPUT"
+          echo "ts=${has_ts}" >> "$GITHUB_OUTPUT"
+          echo "sh=${has_sh}" >> "$GITHUB_OUTPUT"
+          echo "yml=${has_yml}" >> "$GITHUB_OUTPUT"
+
+          echo "Detected changed file types: py=$has_py js=$has_js ts=$has_ts sh=$has_sh yml=$has_yml"
   lint:
-    needs: detect
     runs-on: ubuntu-latest
-    if: ${{ needs.detect.outputs.extensions != '' }}
-    strategy:
-      matrix:
-        extension: [py, js, ts, sh, yml]
+    needs: detect
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
-        if: >-
-          ${{ contains(needs.detect.outputs.extensions, 'py') &&
-          matrix.extension == 'py' }}
+        if: ${{ needs.detect.outputs.py == 'true'}}
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
           python-version: '3.x'
 
+      - name: Run Python linter (flake8)
+        if: ${{ needs.detect.outputs.py == 'true' }}
+        run: |
+          pip install flake8
+          flake8 --max-line-length=999 .
+
       - name: Set up Node.js
-        if: >-
-          ${{ (contains(needs.detect.outputs.extensions, 'js') ||
-          contains(needs.detect.outputs.extensions, 'ts')) &&
-          (matrix.extension == 'js' || matrix.extension == 'ts') }}
+        if: ${{ needs.detect.outputs.js == 'true' || needs.detect.outputs.ts == 'true' }}
         uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238  # v6.2.0
         with:
           node-version: '18'
 
-      - name: Run Python linter (flake8)
-        if: >-
-          ${{ contains(needs.detect.outputs.extensions, 'py') &&
-          matrix.extension == 'py' }}
-        run: |
-          pip install flake8
-          flake8 --max-line-length=999 .    
-      
-      - name: Run JavaScript linter (eslint)
-        if: >-
-          ${{ (contains(needs.detect.outputs.extensions, 'js') ||
-          contains(needs.detect.outputs.extensions, 'ts')) &&
-          (matrix.extension == 'js' || matrix.extension == 'ts') }}
+      - name: Run JavaScript/TypeScript linter (eslint)
+        if: ${{ needs.detect.outputs.js == 'true' || needs.detect.outputs.ts == 'true' }}
         run: |
           npm install
           npx eslint .
 
-      - name: Run Shell linter (shellcheck)
-        if: >-
-          ${{ contains(needs.detect.outputs.extensions, 'sh') &&
-          matrix.extension == 'sh' }}
-        run: |
-          sudo apt-get install -y shellcheck
-          shellcheck $(find . -name "*.sh")
-
       - name: Run YAML linter (yamllint)
-        if: >-
-          ${{ contains(needs.detect.outputs.extensions, 'yml') &&
-          matrix.extension == 'yml' }}
+        if: ${{ needs.detect.outputs.yml == 'true' }}
         run: |
-          pip install yamllint
+          sudo DEBIAN_FRONTEND=noninteractive \
+          sudo apt-get -qq install -y yamllint > /dev/null
           yamllint -d "{extends: default, rules: {line-length: disable}}" .
+
+
+      - name: Run Shell linter (shellcheck)
+        if: ${{ needs.detect.outputs.sh == 'true' }}
+        run: |
+          sudo DEBIAN_FRONTEND=noninteractive \
+          sudo apt-get -qq install -y shellcheck > /dev/null
+          shellcheck $(git ls-files "*.sh")
