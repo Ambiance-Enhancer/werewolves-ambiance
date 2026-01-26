@@ -1,32 +1,28 @@
--- Roles
-CREATE ROLE :"POSTGRES_RW_USER" LOGIN PASSWORD :'POSTGRES_RW_PASSWORD';
-CREATE ROLE :"POSTGRES_RO_USER" LOGIN PASSWORD :'POSTGRES_RO_PASSWORD';
+DO $$
+DECLARE
+    rw_user     text := current_setting('app.rw_user');
+    rw_password text := current_setting('app.rw_password');
+    ro_user     text := current_setting('app.ro_user');
+    ro_password text := current_setting('app.ro_password');
+    schema_name text := current_setting('app.postgres_schema');
+    db_name     text := current_setting('app.postgres_db');
+BEGIN
+    -- Roles creation
+    EXECUTE format('CREATE ROLE %I LOGIN PASSWORD %L', rw_user, rw_password);
+    EXECUTE format('CREATE ROLE %I LOGIN PASSWORD %L', ro_user, ro_password);
 
--- Connexion DB
-GRANT CONNECT ON DATABASE :"POSTGRES_DB" TO :"POSTGRES_RW_USER", :"POSTGRES_RO_USER";
+    -- Grants on database and schema
+    EXECUTE format('GRANT CONNECT ON DATABASE %I TO %I, %I', db_name, rw_user, ro_user);
+    EXECUTE format('GRANT USAGE ON SCHEMA %I TO %I, %I', schema_name, rw_user, ro_user);
 
--- Schema
-GRANT USAGE ON SCHEMA :"POSTGRES_SCHEMA" TO :"POSTGRES_RW_USER", :"POSTGRES_RO_USER";
+    -- Grants on tables and sequences
+    EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA %I TO %I', schema_name, rw_user);
+    EXECUTE format('GRANT SELECT ON ALL TABLES IN SCHEMA %I TO %I', schema_name, ro_user);
 
--- Tables
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA :"POSTGRES_SCHEMA" TO :"POSTGRES_RW_USER";
-GRANT SELECT ON ALL TABLES IN SCHEMA :"POSTGRES_SCHEMA" TO :"POSTGRES_RO_USER";
+    -- Default privileges on tables
+    EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA %I GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO %I', schema_name, rw_user);
+    EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA %I GRANT SELECT ON TABLES TO %I', schema_name, ro_user);
 
--- Séquences (si colonnes SERIAL/IDENTITY)
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA :"POSTGRES_SCHEMA" TO :"POSTGRES_RW_USER";
-
--- Types
-GRANT USAGE ON TYPE :"POSTGRES_SCHEMA".role_enum TO :"POSTGRES_RW_USER", :"POSTGRES_RO_USER";
-GRANT USAGE ON TYPE :"POSTGRES_SCHEMA".game_status_enum TO :"POSTGRES_RW_USER", :"POSTGRES_RO_USER";
-GRANT USAGE ON TYPE :"POSTGRES_SCHEMA".period_enum TO :"POSTGRES_RW_USER", :"POSTGRES_RO_USER";
-GRANT USAGE ON TYPE :"POSTGRES_SCHEMA".action_type_enum TO :"POSTGRES_RW_USER", :"POSTGRES_RO_USER";
-
--- Pour que les futures tables aient automatiquement les bons droits
-ALTER DEFAULT PRIVILEGES IN SCHEMA :"POSTGRES_SCHEMA"
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO :"POSTGRES_RW_USER";
-
-ALTER DEFAULT PRIVILEGES IN SCHEMA :"POSTGRES_SCHEMA"
-GRANT SELECT ON TABLES TO :"POSTGRES_RO_USER";
-
-ALTER DEFAULT PRIVILEGES IN SCHEMA :"POSTGRES_SCHEMA"
-GRANT USAGE, SELECT ON SEQUENCES TO :"POSTGRES_RW_USER";
+    -- Default privileges on sequences
+    EXECUTE format('ALTER DEFAULT PRIVILEGES IN SCHEMA %I GRANT USAGE, SELECT ON SEQUENCES TO %I', schema_name, rw_user);
+END $$;
