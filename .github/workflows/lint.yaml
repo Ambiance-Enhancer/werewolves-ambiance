@@ -100,7 +100,7 @@ jobs:
           sudo DEBIAN_FRONTEND=noninteractive \
           sudo apt-get -qq install -y sqlfluff > /dev/null
           sqlfluff lint --dialect postgres --format github-annotation-native .
-        
+
       - name: Run YAML linter (yamllint)
         if: ${{ needs.detect.outputs.yml == 'true' }}
         run: |
