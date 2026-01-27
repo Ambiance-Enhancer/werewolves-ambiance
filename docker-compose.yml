@@ -1,0 +1,30 @@
+---
+name: Werewolves DB
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: werewolves-db
+    env_file:
+      - ./.env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-werewolves}
+      POSTGRES_USER: ${POSTGRES_USER:-werewolves}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      # Persistent data (init scripts run only when this volume is empty)
+      - werewolves_db_data:/var/lib/postgresql/data
+      # Init schema (executed on first init)
+      - ./src/database/init.sql:/docker-entrypoint-initdb.d/001-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+volumes:
+  werewolves_db_data:
